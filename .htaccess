@@ -6,9 +6,9 @@ RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 Options -Indexes
 AddDefaultCharset UTF-8
 
-# The page is shown inside veganlife.gr: allow framing only from there.
+# Σημείωση: δεν βάζουμε frame-ancestors, γιατί το embed του Hostinger builder είναι sandboxed
+# iframe (opaque origin) και θα μπλοκαριζόταν. Η σελίδα δεν έχει login ή φόρμες με δεδομένα.
 <IfModule mod_headers.c>
-  Header always set Content-Security-Policy "frame-ancestors 'self' https://veganlife.gr https://www.veganlife.gr"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   Header set X-Content-Type-Options "nosniff"
   <FilesMatch "\.(html)$">
