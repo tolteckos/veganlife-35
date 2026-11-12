@@ -1,0 +1,517 @@
+<!-- Vegan Life campaign and store language navigation. Append to Custom code.
+     Campaign layout is scoped to its embed; store changes affect navigation only.
+     Hostinger controls iframe sandboxing; this code does not change it. -->
+<style>
+section.block:has(#zB5lxZ) { padding: 0 !important; min-height: 0 !important; }
+.block-layout-container:has(#zB5lxZ) { width: 100% !important; max-width: none !important; }
+.block-layout:has(#zB5lxZ) { display: block !important; width: 100% !important; max-width: none !important; min-height: 0 !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
+.layout-element:has(#zB5lxZ) { position: relative !important; width: 100% !important; height: auto !important; margin: 0 !important; }
+#zB5lxZ, #zB5lxZ iframe { width: 100% !important; max-width: none !important; }
+</style>
+<script>
+(() => {
+  const selector = '#zB5lxZ iframe';
+  let frame = null;
+  let queued = false;
+  let syncQueued = false;
+  const storageKey = 'veganlife-language';
+  const isCampaign = () => /^\/35\/?$/.test(location.pathname);
+  const active = () => isCampaign() && frame?.isConnected;
+  const productActive = () => !isCampaign() && !!document.querySelector('.block-product .block-product__title');
+  const localizedPage = () => active() || productActive();
+  let route = location.pathname;
+  function languageURL(language) {
+    const url = new URL(location.href);
+    url.searchParams.set('lang',language);
+    return url.pathname + url.search + url.hash;
+  }
+  // Labels and destinations copied from the site's published navigation.
+  // In particular, several Greek page slugs are not just /el + the English slug.
+  const navigation = [
+    ['Home','/','Αρχική','/el'],
+    ['About',null,'Η Vegan Life',null],
+    ['Who we are','/who-we-are','Η ομάδα μας','/el/who-we-are'],
+    ['Mission, Vision, Values','/our-mission','Σκοπός και αξίες','/el/our-mission'],
+    ['Our Work',null,'Τομείς Δράσης',null],
+    ['Vegan Vibes','/vegan-vibes','Vegan Vibes','/el/vegan-vibes'],
+    ['Plant Based Transformation','/plant-based-transformation','Φυτική Μετάβαση','/el/fytikh-metabash'],
+    ['Events','/events','Εκδηλώσεις','/el/ekdhlwseis'],
+    ['Campaigns & Activism','/campaigns-and-activism','Καμπάνιες & Ακτιβισμός','/el/kampanies-and-aktibismos'],
+    ['Education','/education','Εκπαιδεύσεις','/el/plant-based-education'],
+    ['TV Show','/tv-show','Τηλεοπτική εκπομπή','/el/tv-show'],
+    ['Go Vegan','/go-vegan','Γίνε Vegan','/el/go-vegan'],
+    ['Blog','/blog','Blog','/el/blog'],
+    ['Shop','/shop','Shop','/el/shop'],
+    ['Contact','/#contact','Επικοινωνία','/el#contact'],
+    ['Support us','/35?lang=en','Στήριξέ μας','/35?lang=el']
+  ];
+  // Keep the actual Hostinger header, logo, layout and dropdown controls.
+  // Remember only our DOM changes, so a client-side route change can undo them
+  // without overwriting changes that Hostinger has already made itself.
+  const patches = new Map();
+  function patch(node, name, value) {
+    if (!node) return;
+    const read = () => name === 'text' ? node.textContent : node.getAttribute(name);
+    if (read() === value) return;
+    if (!patches.has(node)) patches.set(node, new Map());
+    const fields = patches.get(node);
+    if (!fields.has(name)) fields.set(name, {before:read(), after:value});
+    fields.get(name).after = value;
+    if (name === 'text') node.textContent = value;
+    else if (value === null) node.removeAttribute(name);
+    else node.setAttribute(name,value);
+  }
+  function restore() {
+    for (const [node,fields] of patches) for (const [name,state] of fields) {
+      const current = name === 'text' ? node.textContent : node.getAttribute(name);
+      if (current !== state.after) continue;
+      if (name === 'text') node.textContent = state.before;
+      else if (state.before === null) node.removeAttribute(name);
+      else node.setAttribute(name,state.before);
+    }
+    patches.clear();
+  }
+  function updateHeader(language) {
+    if (!localizedPage()) return;
+    const offset = language === 'el' ? 2 : 0;
+    document.querySelectorAll('header.block-header').forEach(header => {
+      header.querySelectorAll('.item-content').forEach(node => {
+        const label = node.textContent.trim();
+        const row = navigation.find(row => row[0] === label || row[2] === label);
+        if (!row) return;
+        patch(node,'text',row[offset]);
+        if (node.tagName === 'A') {
+          patch(node,'href',row[offset+1]);
+          patch(node,'data-vl-language-link','navigation');
+        }
+      });
+      header.querySelectorAll('.block-header-logo').forEach(node => {
+        patch(node,'href',language === 'el' ? '/el' : '/');
+        patch(node,'data-vl-language-link','navigation');
+      });
+      header.querySelectorAll('.language-switcher').forEach(switcher => {
+        for (const lang of ['el','en']) {
+          const link = switcher.querySelector(`[data-qa="navigation-language-switcher-${lang}"] a`);
+          if (!link) continue;
+          patch(link,'href',languageURL(lang));
+          patch(link,'data-vl-language-link',lang);
+          patch(link,'aria-current',lang === language ? 'true' : null);
+          const classes = new Set(link.classList);
+          if (lang === language) classes.add('--current'); else classes.delete('--current');
+          patch(link,'class',Array.from(classes).join(' '));
+        }
+        const flag = switcher.querySelector('.language-switcher__flag img');
+        const selected = switcher.querySelector(`[data-qa="navigation-language-switcher-${language}"] img`);
+        if (selected) { patch(flag,'src',selected.getAttribute('src')); patch(flag,'alt',`${language} flag`); }
+      });
+    });
+  }
+  function closeNavigation(link) {
+    const switcher = link.closest('.language-switcher');
+    switcher?.querySelector('.language-switcher__button')?.click();
+    const header = link.closest('header.block-header');
+    const menu = header?.querySelector('.block-header-layout-mobile__dropdown');
+    const burger = header?.querySelector('.block-header__hamburger-menu');
+    if (menu?.getBoundingClientRect().height > 0 && burger?.getBoundingClientRect().width > 0) burger.click();
+    // Hostinger also exposes this dropdown while one of its links has focus.
+    if (switcher?.contains(document.activeElement)) document.activeElement.blur();
+    switcher?.blur();
+  }
+  const copy = {
+    en: { title: 'Become one of the 35 | Vegan Life NGO', description: 'Become a monthly supporter of Vegan Life and help us keep educating, taking action and building communities for animals all year round.' },
+    el: { title: 'Γίνε ένας από τους 35 | Vegan Life NGO', description: 'Γίνε μηνιαίος υποστηρικτής της Vegan Life και βοήθησέ μας να συνεχίσουμε όλο τον χρόνο την εκπαίδευση, τις δράσεις και την οικοδόμηση κοινότητας για τα ζώα.' }
+  };
+  function getLanguage() {
+    const requested = new URLSearchParams(location.search).get('lang');
+    if (requested === 'el' || requested === 'en') return requested;
+    try { const stored = localStorage.getItem(storageKey); if (stored === 'el' || stored === 'en') return stored; } catch {}
+    return 'en';
+  }
+  function send(type, data = {}) {
+    // Hostinger may use an opaque sandbox origin, so '*' is required.
+    // Messages contain only language and viewport dimensions; source validation
+    // below ensures unrelated frames cannot change the campaign's state.
+    frame?.contentWindow?.postMessage({channel:'veganlife35',type,...data}, '*');
+  }
+  function updateMeta(language) {
+    patch(document.documentElement,'lang',language);
+    patch(document.querySelector('title'),'text',copy[language].title);
+    for (const selector of ['meta[name="description"]','meta[property="og:description"]','meta[name="twitter:description"]']) patch(document.querySelector(selector),'content',copy[language].description);
+    for (const selector of ['meta[property="og:title"]','meta[name="twitter:title"]']) patch(document.querySelector(selector),'content',copy[language].title);
+    patch(document.querySelector('meta[property="og:locale"]'),'content',language==='el'?'el_GR':'en_GB');
+  }
+  function setLanguage(language, push = false) {
+    if (!localizedPage() || !['el','en'].includes(language)) return;
+    const url = new URL(location.href);
+    url.searchParams.set('lang',language);
+    if (url.href !== location.href) history[push ? 'pushState' : 'replaceState'](history.state,'',url);
+    try { localStorage.setItem(storageKey,language); } catch {}
+    if (active()) updateMeta(language);
+    else patch(document.documentElement,'lang',language);
+    updateHeader(language);
+    if (active()) { send('language',{language}); viewport(); }
+  }
+  function updateProductLinks() {
+    const links = document.querySelectorAll('a.product-list__link');
+    if (!links.length) return;
+    const language = localizedPage() ? getLanguage() : /^\/el(?:\/|$)/.test(location.pathname) ? 'el' : 'en';
+    try { localStorage.setItem(storageKey,language); } catch {}
+    links.forEach(link => {
+      const url = new URL(link.href,location.href);
+      if (url.origin !== location.origin || !['http:','https:'].includes(url.protocol)) return;
+      url.searchParams.set('lang',language);
+      patch(link,'href',url.href);
+      patch(link,'data-vl-product-link',language);
+    });
+  }
+  function viewport() {
+    if (!frame?.isConnected) return;
+    send('viewport', {top:frame.getBoundingClientRect().top,height:window.visualViewport?.height || innerHeight});
+  }
+  function scheduleViewport() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; viewport(); });
+  }
+  function connect() {
+    if (route !== location.pathname) { restore(); frame = null; route = location.pathname; }
+    updateProductLinks();
+    const found = document.querySelector(selector);
+    if (!isCampaign() || !found) {
+      frame = null;
+      if (productActive()) setLanguage(getLanguage());
+      return;
+    }
+    if (found === frame) { updateHeader(getLanguage()); return; }
+    frame = found;
+    frame.title = 'Vegan Life — 35 monthly supporters / μηνιαίοι υποστηρικτές';
+    const initialize = () => { if (frame === found) setLanguage(getLanguage()); };
+    frame.addEventListener('load',initialize);
+    initialize();
+  }
+  window.addEventListener('message',event => {
+    if (!active() || event.source !== frame.contentWindow || !['null',location.origin].includes(event.origin) || event.data?.channel !== 'veganlife35') return;
+    if (event.data.type === 'ready') setLanguage(getLanguage());
+    if (event.data.type === 'language' && ['el','en'].includes(event.data.language)) {
+      setLanguage(event.data.language,true);
+    }
+    if (event.data.type === 'scroll' && Number.isFinite(event.data.top)) {
+      const headerHeight=document.querySelector('.top-blocks--sticky')?.getBoundingClientRect().height || 0;
+      const top=Math.max(0,scrollY+frame.getBoundingClientRect().top+Math.max(0,Math.min(event.data.top,frame.getBoundingClientRect().height))-headerHeight);
+      window.scrollTo({top,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    }
+  });
+  // Intercept only navigation links that this bridge has changed. Native routing
+  // otherwise retains its old language destination even after the href changes.
+  document.addEventListener('click',event => {
+    // A product card contains a native Add to bag button. Leave that button and
+    // its original handlers untouched, including keyboard activation.
+    const productLink = event.target.closest?.('a.product-list__link[data-vl-product-link]');
+    if (productLink && !event.target.closest?.('button,input,select,textarea,[role="button"]')) {
+      event.stopImmediatePropagation();
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      location.assign(productLink.href);
+      return;
+    }
+    if (!localizedPage()) return;
+    const link = event.target.closest?.('header.block-header a[data-vl-language-link]');
+    if (!link) return;
+    event.stopImmediatePropagation();
+    // Keep the browser's normal open-in-new-tab behaviour and updated href.
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const choice = link.getAttribute('data-vl-language-link');
+    if (choice === 'el' || choice === 'en') {
+      setLanguage(choice,true);
+      closeNavigation(link);
+    } else location.assign(link.href);
+  },true);
+  window.addEventListener('popstate',() => { connect(); if (localizedPage()) setLanguage(getLanguage()); });
+  window.addEventListener('pageshow',() => { connect(); if (localizedPage()) setLanguage(getLanguage()); });
+  window.addEventListener('scroll',scheduleViewport,{passive:true});
+  window.addEventListener('resize',scheduleViewport,{passive:true});
+  window.visualViewport?.addEventListener('resize',scheduleViewport,{passive:true});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',connect,{once:true});
+  else connect();
+  new MutationObserver(() => {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(() => { syncQueued = false; connect(); });
+  }).observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['href','src','alt','class']});
+})();
+</script>
+
+<!-- Greek storefront interface. Product names, prices, IDs and handlers stay native. -->
+<style>
+html[data-vl-store-greek] :is(.category-list__link,.product-list-item__button,.block-product__button,.cart__checkout-button) {
+  word-break: normal !important;
+  white-space: normal;
+}
+</style>
+<script>
+(() => {
+  const copy = new Map([
+    ['Browse by','Κατηγορίες'], ['Browse by:','Κατηγορίες:'],
+    ['All products','Όλα τα προϊόντα'], ['Accessories','Αξεσουάρ'],
+    ['Birthday and love cards','Κάρτες γενεθλίων και αγάπης'],
+    ['Magnets & Stickers','Μαγνητάκια & αυτοκόλλητα'], ['Posters','Αφίσες'],
+    ['Socks','Κάλτσες'], ['T-shirts','Μπλουζάκια'], ['Tableware','Είδη σερβιρίσματος'],
+    ['Tote-bags','Υφασμάτινες τσάντες'], ['Sort by:','Ταξινόμηση:'],
+    ['Default','Προεπιλογή'], ['Price (low to high)','Τιμή (αύξουσα)'],
+    ['Price (high to low)','Τιμή (φθίνουσα)'], ['Most recent','Πιο πρόσφατα'],
+    ['Add to bag','Προσθήκη στο καλάθι'], ['Sold out','Εξαντλήθηκε'],
+    ['best seller','Δημοφιλές'], ['Size','Μέγεθος'],
+    ['You may also like','Μπορεί επίσης να σας αρέσουν'],
+    ['Shopping bag','Καλάθι αγορών'], ['Shopping bag is empty','Το καλάθι σας είναι άδειο'],
+    ['Subtotal:','Υποσύνολο:'], ['Shipping calculated at checkout','Τα μεταφορικά υπολογίζονται στην ολοκλήρωση της αγοράς'],
+    ['Checkout','Ολοκλήρωση αγοράς'], ['Secure checkout','Ασφαλής ολοκλήρωση αγοράς'],
+    ['Go to cart','Μετάβαση στο καλάθι'], ['Previous page','Προηγούμενη σελίδα'],
+    ['Next page','Επόμενη σελίδα']
+  ]);
+  // Only interface elements observed in the native storefront. Do not walk
+  // product descriptions, names, payment forms or arbitrary page content.
+  const textTargets = [
+    '.category-list', '.product-list-sorting', '.block-product-list__category',
+    '.product-list-item__button', '.product-list-item__text', '.ecommerce-product-ribbon__text',
+    '.block-product__button', '.block-product__stock-text', '.option-select__label',
+    '.cart__content-title', '.cart__footer'
+  ].join(',');
+  const attributeTargets = '.pagination__button, [data-qa="header-btn-shoppingbag"]';
+  const changes = new Map();
+  let queued = false;
+  function greek() {
+    if (/^\/el(?:\/|$)/.test(location.pathname)) return true;
+    if (/^\/35\/?$/.test(location.pathname) || document.querySelector('.block-product .block-product__title')) {
+      const choice = new URLSearchParams(location.search).get('lang');
+      return choice ? choice === 'el' : document.documentElement.lang === 'el';
+    }
+    return false;
+  }
+  function translate(value) {
+    const key = value.trim();
+    let result = copy.get(key);
+    const stock = key.match(/^(\d+\+?) in stock$/);
+    const page = key.match(/^Go to page (\d+)$/);
+    if (stock) result = `Σε απόθεμα: ${stock[1]}`;
+    if (page) result = `Μετάβαση στη σελίδα ${page[1]}`;
+    if (!result) return value;
+    const start = value.indexOf(key);
+    return value.slice(0,start) + result + value.slice(start+key.length);
+  }
+  const read = (node,field) => field === 'text' ? node.nodeValue : node.getAttribute(field);
+  const write = (node,field,value) => {
+    if (field === 'text') node.nodeValue = value;
+    else node.setAttribute(field,value);
+  };
+  function apply(node,field) {
+    const current = read(node,field);
+    if (current === null) return;
+    const saved = changes.get(node)?.get(field);
+    // Vue can replace the text when inventory or the selected category changes.
+    const before = saved && current === saved.after ? saved.before : current;
+    const after = translate(before);
+    if (before === after) { changes.get(node)?.delete(field); return; }
+    if (!changes.has(node)) changes.set(node,new Map());
+    changes.get(node).set(field,{before,after});
+    if (current !== after) write(node,field,after);
+  }
+  function sync() {
+    const enabled = greek();
+    if (document.documentElement.hasAttribute('data-vl-store-greek') !== enabled) document.documentElement.toggleAttribute('data-vl-store-greek',enabled);
+    for (const [node,fields] of changes) {
+      if (!node.isConnected) { changes.delete(node); continue; }
+      if (enabled) continue;
+      for (const [field,saved] of fields) if (read(node,field) === saved.after) write(node,field,saved.before);
+      changes.delete(node);
+    }
+    if (!enabled) return;
+    document.querySelectorAll(textTargets).forEach(root => {
+      const walker = document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) apply(walker.currentNode,'text');
+    });
+    document.querySelectorAll(attributeTargets).forEach(node => {
+      apply(node,'aria-label'); apply(node,'title');
+    });
+  }
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; sync(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',sync,{once:true});
+  else sync();
+  window.addEventListener('popstate',schedule);
+  window.addEventListener('pageshow',schedule);
+  new MutationObserver(schedule).observe(document.documentElement,{
+    childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['lang','aria-label','title']
+  });
+})();
+</script>
+
+<script>
+(() => {
+  'use strict';
+  // Correct only the 13 reviewed assets carrying the old template description.
+  const legacy = 'an abstract photo of a curved building with a blue sky in the background';
+  const descriptions = new Map([
+    ['476183647_548621028225941_2776190874774842215_n-Yg24M9Bv9KFEe3LQ.jpg', ['Ένα γουρουνάκι στέκεται σε εξωτερικό χώρο.', 'A pig standing outdoors.']],
+    ['3a6a0404-bhtLbmm20tMo6BKt.jpg', ['Ομαδική φωτογραφία εθελοντών της Vegan Life σε υπαίθρια εκδήλωση.', 'Vegan Life volunteers posing together at an outdoor event.']],
+    // Decorative title collages repeat photographs represented in the page content.
+    ['untitled-design-1-YZ9jZqwkpZCJgZlV.png', ['', '']],
+    ['untitled-design-2-YNq235jozrU1p8Ow.png', ['', '']],
+    ['vegan_life_festival_athens_2021-zr0kCOPmcrfr7odw.jpg', ['Επισκέπτες ανάμεσα στα περίπτερα του Vegan Life Festival στην Τεχνόπολη.', 'Visitors among the stalls at Vegan Life Festival in Technopolis.']],
+    ['3a6a9530-kHde1MplVzpSpz6u.jpg', ['Ομιλητές σε πάνελ και κοινό σε αμφιθέατρο εκδήλωσης της Vegan Life.', 'Speakers on a panel and an audience in an auditorium at a Vegan Life event.']],
+    ['img_5551-5RTeoVxgp0DS6emS.JPG', ['Συμμετέχοντες σε δράση για τα δικαιώματα των ζώων κρατούν πινακίδες στην πλατεία Συντάγματος.', 'Participants in an animal rights action holding signs in Syntagma Square.']],
+    ['melanie-joy-LIcIQBWt16gayU05.png', ['Η Melanie Joy μιλά κρατώντας μικρόφωνο.', 'Melanie Joy speaking into a microphone.']],
+    // A generic salad is used solely as a backdrop to the introductory text.
+    ['hermes-rivera-ww8eqwjmjwk-unsplash-8txlthVuP9pn7owg.jpg', ['', '']],
+    ['123-Hyf0rACVJMRnx3PL.png', ['Ποικιλία φυτικών τροφίμων: όσπρια, ξηροί καρποί, τόφου, δημητριακά και λαχανικά.', 'A variety of plant foods: pulses, nuts, tofu, grains and vegetables.']],
+    ['482601184_18303972313237730_1147635843904735196_n-ALp2gJ8evWuQlvqo.jpg', ['Παιδιά με σχολικές τσάντες σε εκπαιδευτική δράση στο περίπτερο της Vegan Life.', 'Children with school bags taking part in an educational activity at the Vegan Life stand.']],
+    ['7064d3_c98deb2590814318bfe298b5973b3986~mv2-A1a5pbrXyLclvzN4.jpg', ['Φρούτα, λαχανικά, όσπρια, δημητριακά, ξηροί καρποί και σπόροι σε τραπέζι.', 'Fruit, vegetables, pulses, grains, nuts and seeds arranged on a table.']],
+    ['wam4773-FA3HjaOkkONUvRiP.jpg', ['Άνθρωπος ξαπλωμένος στο γρασίδι χαϊδεύει μία από τις γαλοπούλες που τον περιβάλλουν.', 'A person lying on the grass, stroking one of the turkeys gathered around them.']],
+  ]);
+  const managed = new WeakMap();
+  const isGreek = () => /^\/el(?:\/|$)/.test(location.pathname);
+  function apply() {
+    const languageIndex = isGreek() ? 0 : 1;
+    document.querySelectorAll('img.block-background__image').forEach(image => {
+      let filename;
+      try { filename = new URL(image.getAttribute('src'), location.href).pathname.split('/').pop(); }
+      catch { return; }
+      const labels = descriptions.get(filename);
+      const previous = managed.get(image);
+      const current = image.getAttribute('alt');
+      if (!labels) {
+        // A reused image element must never retain a description of a different photo.
+        if (previous && current === previous.applied) image.setAttribute('alt', '');
+        managed.delete(image);
+        return;
+      }
+      // Preserve any future description intentionally set in the native editor.
+      if (current !== legacy && (!previous || current !== previous.applied)) {
+        managed.delete(image);
+        return;
+      }
+      const description = labels[languageIndex];
+      managed.set(image, { applied: description });
+      if (current !== description) image.setAttribute('alt', description);
+    });
+  }
+  let scheduled = false;
+  const schedule = () => {
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => { scheduled = false; apply(); });
+  };
+  new MutationObserver(schedule).observe(document.documentElement, {
+    subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'alt', 'lang'],
+  });
+  window.addEventListener('popstate', schedule);
+  document.addEventListener('DOMContentLoaded', schedule, { once: true });
+  schedule();
+})();
+</script>
+
+<!-- Homepage support invitation. Once per browser-tab session, on / and /el only. -->
+<style>
+#vl-support-dialog { box-sizing: border-box; position: fixed; inset: 0; width: min(480px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; padding: 36px; overflow: auto; border: 0; border-radius: 24px; background: #F7F5EF; color: #0B4F43; box-shadow: 0 24px 90px #001b1750; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: left; line-height: 1.6; }
+#vl-support-dialog::backdrop { background: rgb(3 30 24 / .58); }
+#vl-support-dialog * { box-sizing: border-box; }
+#vl-support-dialog .vl-support-close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 44px; height: 44px; padding: 10px; border: 0; border-radius: 50%; background: transparent; color: #0B4F43; cursor: pointer; }
+#vl-support-dialog .vl-support-close:hover { background: #E5EDE3; }
+#vl-support-dialog .vl-support-close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
+#vl-support-dialog .vl-support-eyebrow { display: inline-block; margin: 8px 30px 20px 0; padding: 5px 12px; border-radius: 30px; background: #DFEAB3; color: #0B4F43; font-size: 12px; font-weight: 700; letter-spacing: .025em; }
+#vl-support-dialog h2 { margin: 0 0 18px; color: #0B4F43; font-family: inherit; font-size: clamp(25px, 5vw, 32px); font-weight: 750; line-height: 1.2; letter-spacing: -.035em; text-wrap: balance; }
+#vl-support-dialog .vl-support-description { margin: 0 0 26px; color: #43594E; font-size: 16px; line-height: 1.65; }
+#vl-support-dialog .vl-support-cta { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 52px; padding: 14px 18px; border-radius: 10px; background: #0B4F43; color: #fff; font-size: 16px; font-weight: 700; line-height: 1.4; text-decoration: none; }
+#vl-support-dialog .vl-support-cta:hover { background: #063C33; }
+#vl-support-dialog .vl-support-later { display: block; width: 100%; min-height: 44px; margin: 8px 0 0; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: #43594E; font-family: inherit; font-size: 14px; cursor: pointer; }
+#vl-support-dialog .vl-support-later:hover { background: #E5EDE3; }
+#vl-support-dialog :focus-visible { outline: 3px solid #80BD3D; outline-offset: 3px; }
+html.vl-support-modal-open { overflow: hidden !important; }
+@media (max-width: 420px) { #vl-support-dialog { padding: 28px 24px 20px; border-radius: 20px; } }
+@media (prefers-reduced-motion: no-preference) { #vl-support-dialog[open] { animation: vl-support-appear .18s ease-out; } @keyframes vl-support-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } } }
+</style>
+<script>
+(() => {
+  const id = 'vl-support-dialog';
+  const sessionKey = 'veganlife-support-invitation-v1';
+  const copy = {
+    el: { eyebrow: 'Μαζί για τα ζώα', title: 'Η στήριξή σου κάνει τη διαφορά.', description: 'Βοήθησέ μας να συνεχίσουμε την ενημέρωση, τις δράσεις για τα ζώα και τις εκδηλώσεις της κοινότητάς μας. Γίνε μηνιαίος υποστηρικτής της Vegan Life, από 5€ τον μήνα.', cta: 'Στήριξέ μας', later: 'Ίσως αργότερα', close: 'Κλείσιμο μηνύματος στήριξης' },
+    en: { eyebrow: 'Together for animals', title: 'Your support makes a difference.', description: 'Help us keep sharing information, taking action for animals and bringing our community together. Become a monthly supporter of Vegan Life, from €5 a month.', cta: 'Support us', later: 'Maybe later', close: 'Close support invitation' }
+  };
+  let shown = false;
+  let timer = null;
+  let dialog = null;
+  let previousFocus = null;
+  let previousRoute = '';
+  const isHome = () => location.pathname === '/' || /^\/el\/?$/.test(location.pathname);
+  const language = () => {
+    const requested = new URLSearchParams(location.search).get('lang');
+    if (requested === 'el' || requested === 'en') return requested;
+    return /^\/el\/?$/.test(location.pathname) || document.documentElement.lang.toLowerCase().startsWith('el') ? 'el' : 'en';
+  };
+  function alreadyShown() {
+    if (shown) return true;
+    try { return sessionStorage.getItem(sessionKey) === '1'; } catch { return false; }
+  }
+  function close() { if (dialog?.open) dialog.close(); }
+  function show() {
+    timer = null;
+    if (!isHome() || alreadyShown() || document.visibilityState !== 'visible') return;
+    // Avoid covering another modal that the visitor is already using.
+    if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
+    const lang = language();
+    const text = copy[lang];
+    dialog = document.createElement('dialog');
+    dialog.id = id;
+    dialog.lang = lang;
+    dialog.setAttribute('aria-labelledby', 'vl-support-title');
+    dialog.setAttribute('aria-describedby', 'vl-support-description');
+    dialog.innerHTML = `<button class="vl-support-close" type="button" aria-label="${text.close}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button><p class="vl-support-eyebrow">${text.eyebrow}</p><h2 id="vl-support-title">${text.title}</h2><p class="vl-support-description" id="vl-support-description">${text.description}</p><a class="vl-support-cta" href="/35?lang=${lang}">${text.cta}<span aria-hidden="true">↗</span></a><button class="vl-support-later" type="button">${text.later}</button>`;
+    if (typeof dialog.showModal !== 'function') return;
+    previousFocus = document.activeElement;
+    dialog.querySelector('.vl-support-close').addEventListener('click', close);
+    dialog.querySelector('.vl-support-later').addEventListener('click', close);
+    dialog.querySelector('.vl-support-cta').addEventListener('click', close);
+    dialog.addEventListener('click', event => {
+      if (event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+    });
+    dialog.addEventListener('close', () => {
+      document.documentElement.classList.remove('vl-support-modal-open');
+      if (previousFocus?.isConnected && previousFocus !== document.body) previousFocus.focus({ preventScroll: true });
+      dialog.remove();
+    }, { once: true });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    document.documentElement.classList.add('vl-support-modal-open');
+    dialog.querySelector('.vl-support-cta').focus({ preventScroll: true });
+    shown = true;
+    try { sessionStorage.setItem(sessionKey, '1'); } catch { /* The in-memory flag still prevents repetition. */ }
+  }
+  function checkRoute() {
+    const route = location.pathname + location.search;
+    if (route !== previousRoute) {
+      previousRoute = route;
+      clearTimeout(timer);
+      timer = null;
+      if (!isHome()) close();
+    }
+    if (isHome() && !alreadyShown() && !timer && document.visibilityState === 'visible') timer = setTimeout(show, 1200);
+  }
+  function init() {
+    if (document.getElementById(id)) return;
+    checkRoute();
+    // Hostinger can switch pages without a full reload.
+    new MutationObserver(checkRoute).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('popstate', checkRoute);
+    window.addEventListener('pageshow', checkRoute);
+    document.addEventListener('visibilitychange', checkRoute);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
+})();
+</script>

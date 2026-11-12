@@ -16,6 +16,6 @@ AddDefaultCharset UTF-8
   </FilesMatch>
 </IfModule>
 
-<FilesMatch "^(README\.md|builder-embed\.html|\.gitignore)$">
+<FilesMatch "^(README\.md|builder-embed\.html|builder-custom-code\.html|\.gitignore)$">
   Require all denied
 </FilesMatch>
