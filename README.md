@@ -17,6 +17,10 @@ Push στο branch `main`. Το Hostinger τραβάει το repository (Git de
 
 Αν το αυτόματο deploy δεν έχει ενεργοποιηθεί: Hostinger → Websites → 35.veganlife.gr → Advanced → GIT → Deploy.
 
+## Πηγές αριθμών
+
+Οι αριθμοί του Veganuary (1.085 εγγραφές, 2.000.000+ reach, 86 επιχειρήσεις, 4.000+ Vegan Vibes February, 36 δημοσιεύματα, 365 αναρτήσεις, 32 εθελοντές, 12+ ώρες εργαστήρια) είναι από την αναφορά του grant «Veganuary Greece 2026» προς ProVeg. Το 50.000 επισκέπτες και η έρευνα «4 στους 10» είναι από το Annual Report 2024. Το 6.000+ Vegan Vibes September 2026 και το 5.294 newsletter από το brief της οργάνωσης.
+
 ## Ρυθμίσεις καμπάνιας (`index.html`, αρχή του `<script>`)
 
 ```js
