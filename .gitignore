@@ -1,0 +1,5 @@
+config.php
+supporters-api/config.php
+supporters-api/data/
+supporters-data/
+.DS_Store

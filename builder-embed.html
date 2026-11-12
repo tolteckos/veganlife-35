@@ -1,0 +1,31 @@
+<!-- veganlife.gr/35 — Embed code για τον Hostinger Website Builder.
+     Επικολλάται ΜΙΑ φορά στο στοιχείο Embed code της σελίδας /35.
+     Από εκεί και πέρα η σελίδα ενημερώνεται από το https://35.veganlife.gr (Git deploy). -->
+<style>
+  html, body { margin: 0; padding: 0; background: #0B4F43; }
+  #vl35 { display: block; width: 100%; border: 0; height: 2400px; }
+</style>
+<iframe id="vl35" src="https://35.veganlife.gr/" title="Become one of the 35 — Vegan Life NGO" loading="eager" allow="payment" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+<script>
+(() => {
+  // Relay between the site script on veganlife.gr (window.parent) and the campaign page (inner iframe).
+  // Up: language / scroll / ready. Down: language / viewport. Height: resize the iframe.
+  const frame = document.getElementById("vl35");
+  const inner = () => frame.contentWindow;
+  window.addEventListener("message", event => {
+    const data = event.data;
+    if (!data || data.channel !== "veganlife35") return;
+    if (event.source === inner()) {
+      if (data.type === "height" && Number.isFinite(data.height) && data.height > 0) {
+        frame.style.height = `${Math.ceil(data.height)}px`;
+        return;
+      }
+      if (window.parent !== window) window.parent.postMessage(data, "*");
+      return;
+    }
+    if (window.parent !== window && event.source === window.parent) {
+      if (data.type === "language" || data.type === "viewport") inner().postMessage(data, "https://35.veganlife.gr");
+    }
+  });
+})();
+</script>

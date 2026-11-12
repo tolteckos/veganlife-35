@@ -1,0 +1,21 @@
+# 35.veganlife.gr — static campaign page + supporters-api
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+Options -Indexes
+AddDefaultCharset UTF-8
+
+# The page is shown inside veganlife.gr: allow framing only from there.
+<IfModule mod_headers.c>
+  Header always set Content-Security-Policy "frame-ancestors 'self' https://veganlife.gr https://www.veganlife.gr"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set X-Content-Type-Options "nosniff"
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<FilesMatch "^(README\.md|builder-embed\.html|\.gitignore)$">
+  Require all denied
+</FilesMatch>

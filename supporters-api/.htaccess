@@ -1,0 +1,5 @@
+# supporters-api: μόνο count.php, stripe-webhook.php και setup.php είναι προσβάσιμα.
+<FilesMatch "^(config\.php|config\.example\.php|_lib\.php|setup-token\.php)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
