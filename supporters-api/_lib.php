@@ -106,18 +106,21 @@ function sa_current(bool $force = false): array {
         'stripe' => $result['stripe'],
         'lastJoinedAt' => $result['lastJoinedAt'] ?? ($cache['lastJoinedAt'] ?? null),
         'checkedAt' => time(),
+        'stripeOk' => true,
       ];
       sa_write_cache($cache);
     } elseif ($cache) {
       $cache['checkedAt'] = time() - (int) $config['cache_seconds'] + 60; // ξαναδοκιμή σε 1 λεπτό
+      $cache['stripeOk'] = false;
     } else {
-      $cache = ['stripe' => 0, 'lastJoinedAt' => null, 'checkedAt' => 0, 'stale' => true];
+      $cache = ['stripe' => 0, 'lastJoinedAt' => null, 'checkedAt' => 0, 'stripeOk' => false];
     }
   }
   return [
     'supporters' => (int) $cache['stripe'] + (int) $config['manual_extra'],
     'lastJoinedAt' => $cache['lastJoinedAt'] ?? null,
     'updatedAt' => gmdate('c', (int) ($cache['checkedAt'] ?? time())),
+    'source' => !empty($cache['stripeOk']) ? 'stripe' : 'fallback',
   ];
 }
 
