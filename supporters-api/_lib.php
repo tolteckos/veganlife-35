@@ -293,3 +293,29 @@ function sa_checkout_extras(array $session): array {
   if ($consent === null && isset($session['consent']['promotions'])) $consent = $session['consent']['promotions'] === 'opt_in';
   return ['consent' => (bool) $consent, 'phone' => $phone];
 }
+
+/* Διαγνωστικό αυθεντικοποίησης Mailjet: δοκιμάζει τρεις τρόπους αποστολής των κλειδιών
+   και έναν ουδέτερο έλεγχο ότι το Authorization header φεύγει από τον server. */
+function sa_mailjet_diagnose(): string {
+  $m = sa_config()['mailjet']; $key = trim((string) $m['api_key']); $secret = trim((string) $m['api_secret']);
+  $base = rtrim($m['api_base'] ?? 'https://api.mailjet.com', '/');
+  $run = function (string $url, array $opts, string $label) {
+    $ch = curl_init($url); $verbose = fopen('php://temp', 'w+');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_VERBOSE => true, CURLOPT_STDERR => $verbose] + $opts);
+    $raw = curl_exec($ch); $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
+    rewind($verbose); $log = stream_get_contents($verbose); fclose($verbose);
+    $sent = [];
+    foreach (explode("\n", $log) as $line) {
+      if (preg_match('/^> (Authorization|Host|Proxy-Authorization|User-Agent):\s*(.*)$/i', trim($line), $mm)) $sent[] = $mm[1] . ': ' . (stripos($mm[1], 'authorization') !== false ? substr($mm[2], 0, 10) . '…(' . strlen(trim($mm[2])) . ')' : trim($mm[2]));
+      if (preg_match('/^\* (Connected to|Trying|Uses proxy|Establish HTTP proxy|CONNECT)/i', trim($line))) $sent[] = trim($line, "* ");
+    }
+    return "$label → HTTP $status" . ($err ? " curl:$err" : '') . ' | ' . implode(' | ', array_slice($sent, 0, 5)) . ' | body: ' . substr(strip_tags((string) $raw), 0, 80);
+  };
+  $lines = [];
+  $lines[] = $run("$base/v3/REST/apikey", [CURLOPT_HTTPAUTH => CURLAUTH_BASIC, CURLOPT_USERPWD => "$key:$secret"], 'A userpwd');
+  $lines[] = $run("$base/v3/REST/apikey", [CURLOPT_HTTPHEADER => ['Authorization: Basic ' . base64_encode("$key:$secret"), 'User-Agent: veganlife-35']], 'B header');
+  $lines[] = $run(preg_replace('#^https://#', "https://$key:$secret@", $base) . '/v3/REST/apikey', [], 'C url');
+  $lines[] = $run('https://httpbin.org/basic-auth/user/pass', [CURLOPT_HTTPHEADER => ['Authorization: Basic ' . base64_encode('user:pass')]], 'D httpbin (expect 200)');
+  $lines[] = 'key len ' . strlen($key) . ' hex=' . (ctype_xdigit($key) ? 'yes' : 'NO') . ', secret len ' . strlen($secret) . ' hex=' . (ctype_xdigit($secret) ? 'yes' : 'NO') . ', php ' . PHP_VERSION . ', curl ' . (curl_version()['version'] ?? '?') . ', proxy env: ' . (getenv('https_proxy') ?: getenv('HTTPS_PROXY') ?: 'none');
+  return implode("\n", $lines);
+}

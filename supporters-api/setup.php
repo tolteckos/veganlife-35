@@ -61,6 +61,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
           $lists = sa_mailjet_lists();
           if (hash_equals($tokenHash, hash('sha256', (string) $config['mailjet']['api_secret']))) $message .= ' ΠΡΟΣΟΧΗ: το Mailjet secret που αποθηκεύτηκε είναι ίδιο με τον κωδικό ρύθμισης, ο browser το συμπλήρωσε αυτόματα. Ξαναγράψτε το secret.';
           if (hash_equals($tokenHash, hash('sha256', (string) $config['mailjet']['api_key']))) $message .= ' ΠΡΟΣΟΧΗ: το Mailjet API key είναι ίδιο με τον κωδικό ρύθμισης.';
+          if ($lists['supporters'] <= 0) $message .= '<br><pre style="white-space:pre-wrap;font-size:12px">' . htmlspecialchars(sa_mailjet_diagnose()) . '</pre>';
           $message .= ($lists['supporters'] > 0) ? " Mailjet OK: λίστα υποστηρικτών #{$lists['supporters']}, λίστα ενημερώσεων #{$lists['updates']}." : ' Mailjet: ΑΠΟΤΥΧΙΑ σύνδεσης. Απάντηση: ' . htmlspecialchars(sa_mailjet_last_error() ?: 'καμία') . ' · αποθηκευμένο key ' . substr($config['mailjet']['api_key'], 0, 6) . '…' . substr($config['mailjet']['api_key'], -4) . ' (' . strlen($config['mailjet']['api_key']) . ' χαρ.), secret ' . substr($config['mailjet']['api_secret'], 0, 4) . '…' . substr($config['mailjet']['api_secret'], -2) . ' (' . strlen($config['mailjet']['api_secret']) . ' χαρ.).';
         }
         if (!empty($_POST['send_test']) && $config['notify_emails']) {
