@@ -69,6 +69,10 @@ $amountText = $amount !== null ? number_format($amount, 2, ',', '.') . ' ' . str
 
 if ($type === 'customer.subscription.deleted') {
   sa_log("webhook: subscription deleted → total $total");
+  if (sa_mailjet_enabled() && !empty($object['customer'])) {
+    $customer = sa_stripe_get('/v1/customers/' . rawurlencode((string) $object['customer']));  // θέλει "Customers: Read" στο κλειδί· αλλιώς αγνοείται
+    if (!empty($customer['email'])) sa_mailjet_sync(['email' => $customer['email'], 'name' => $customer['name'] ?? '', 'consent' => null, 'status' => 'cancelled']);
+  }
   sa_notify("Ακύρωση μηνιαίας στήριξης · σύνολο τώρα $total",
     "Ένας μηνιαίος υποστηρικτής ακύρωσε τη συνδρομή του ($amountText).\n\nΣύνολο ενεργών υποστηρικτών τώρα: $total / 35\n\nΛεπτομέρειες στο Stripe Dashboard → Subscriptions.\n");
 } else {
@@ -77,12 +81,19 @@ if ($type === 'customer.subscription.deleted') {
   if ($type === 'checkout.session.completed') {
     sa_log("webhook: new supporter ($amountText) → total $total");
     $who = trim($name . ($email ? " <$email>" : ''));
+    // Αυτόματη εγγραφή στο Mailjet (λίστα υποστηρικτών + λίστα ενημερώσεων αν συναίνεσε).
+    $extras = sa_checkout_extras($object);
+    $mailjetNote = '';
+    if ($email !== '' && sa_mailjet_enabled()) {
+      $synced = sa_mailjet_sync(['email' => $email, 'name' => $name, 'phone' => $extras['phone'], 'amount' => $amountText, 'consent' => $extras['consent'], 'status' => 'active']);
+      $mailjetNote = "\nMailjet: " . ($synced ? 'καταχωρήθηκε' : 'ΑΠΟΤΥΧΙΑ, δείτε το log') . " · Συναίνεση ενημερώσεων: " . ($extras['consent'] ? 'ΝΑΙ' : 'όχι') . ($extras['phone'] !== '' ? " · Κινητό: {$extras['phone']}" : '') . "\n";
+    }
     sa_notify("🎉 Νέος μηνιαίος υποστηρικτής #$total · $amountText",
       "Κάποιος μόλις έγινε ένας από τους 35!\n\n"
       . "Ποσό: $amountText\n"
       . ($who !== '' ? "Στοιχεία: $who\n" : '')
       . "\nΣύνολο μηνιαίων υποστηρικτών τώρα: $total / 35\n"
-      . "Ο μετρητής στη σελίδα veganlife.gr/35 ενημερώθηκε αυτόματα.\n\n"
+      . "Ο μετρητής στη σελίδα veganlife.gr/35 ενημερώθηκε αυτόματα.\n" . $mailjetNote . "\n"
       . "Λεπτομέρειες στο Stripe Dashboard → Payments / Subscriptions.\n");
   } else {
     sa_log("webhook: subscription created ($amountText) → total $total");

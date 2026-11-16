@@ -23,7 +23,7 @@ function sa_config(): array {
     'manual_extra' => 0, 'cache_seconds' => 300, 'notify_emails' => [],
     'from_email' => 'noreply@localhost', 'from_name' => 'Vegan Life · 35',
     'data_dir' => __DIR__ . '/data', 'stripe_api_base' => 'https://api.stripe.com',
-    'campaign_start' => '2026-01-01 00:00:00', 'smtp' => [],
+    'campaign_start' => '2026-01-01 00:00:00', 'smtp' => [], 'mailjet' => [],
   ];
   return $config;
 }
@@ -177,4 +177,105 @@ function sa_smtp_send(array $smtp, string $from, string $fromHeader, string $to,
     $send('QUIT', [221]);
     return true;
   } finally { fclose($sock); }
+}
+
+/* ============================================================================
+   Mailjet: κάθε νέος μηνιαίος υποστηρικτής μπαίνει αυτόματα σε λίστα επαφών.
+   - Λίστα «Υποστηρικτές»: όλοι (επικοινωνία για τη στήριξή τους).
+   - Λίστα «Ενημερώσεις»: μόνο όσοι απάντησαν «Ναι» στο checkout.
+   Οι λίστες δημιουργούνται αυτόματα στην πρώτη εγγραφή αν δεν έχουν οριστεί IDs.
+   ========================================================================== */
+function sa_mailjet_enabled(): bool {
+  $m = sa_config()['mailjet'] ?? [];
+  return !empty($m['api_key']) && !empty($m['api_secret']);
+}
+
+function sa_mailjet_request(string $method, string $path, ?array $body = null): ?array {
+  $m = sa_config()['mailjet'];
+  $ch = curl_init(rtrim($m['api_base'] ?? 'https://api.mailjet.com', '/') . $path);
+  $headers = ['Content-Type: application/json'];
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_CUSTOMREQUEST => $method,
+    CURLOPT_USERPWD => $m['api_key'] . ':' . $m['api_secret'], CURLOPT_HTTPHEADER => $headers,
+  ]);
+  if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
+  $raw = curl_exec($ch); $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
+  if ($raw === false || $status >= 400) { sa_log("mailjet $method $path failed: HTTP $status " . substr((string) $raw, 0, 200)); return null; }
+  $data = json_decode((string) $raw, true);
+  return is_array($data) ? $data : [];
+}
+
+/* Επιστρέφει τα IDs των δύο λιστών, δημιουργώντας τες αν λείπουν (μία φορά, με cache). */
+function sa_mailjet_lists(): array {
+  $m = sa_config()['mailjet'];
+  $file = sa_data_dir() . '/mailjet-lists.json';
+  $cached = is_file($file) ? json_decode((string) file_get_contents($file), true) : [];
+  $lists = ['supporters' => (int) ($m['list_supporters'] ?? 0) ?: (int) ($cached['supporters'] ?? 0),
+            'updates' => (int) ($m['list_updates'] ?? 0) ?: (int) ($cached['updates'] ?? 0)];
+  $names = ['supporters' => 'Vegan Life 35 · Μηνιαίοι υποστηρικτές', 'updates' => 'Vegan Life 35 · Συναίνεση για ενημερώσεις'];
+  foreach ($lists as $key => $id) {
+    if ($id > 0) continue;
+    $existing = sa_mailjet_request('GET', '/v3/REST/contactslist?Name=' . rawurlencode($names[$key]) . '&Limit=1');
+    $id = (int) ($existing['Data'][0]['ID'] ?? 0);
+    if ($id <= 0) { $created = sa_mailjet_request('POST', '/v3/REST/contactslist', ['Name' => $names[$key]]); $id = (int) ($created['Data'][0]['ID'] ?? 0); }
+    $lists[$key] = $id;
+  }
+  @file_put_contents($file, json_encode($lists), LOCK_EX);
+  return $lists;
+}
+
+/* Οι ιδιότητες επαφής που χρησιμοποιούμε (δημιουργούνται μία φορά). */
+function sa_mailjet_ensure_properties(): void {
+  $file = sa_data_dir() . '/mailjet-props.ok';
+  if (is_file($file)) return;
+  $props = ['firstname' => 'str', 'phone' => 'str', 'monthly_amount' => 'str', 'supporter_since' => 'str', 'consent_updates' => 'str', 'support_status' => 'str'];
+  $existing = sa_mailjet_request('GET', '/v3/REST/contactmetadata?Limit=200');
+  $have = array_map(fn($p) => strtolower((string) $p['Name']), $existing['Data'] ?? []);
+  foreach ($props as $name => $type) {
+    if (in_array($name, $have, true)) continue;
+    sa_mailjet_request('POST', '/v3/REST/contactmetadata', ['Name' => $name, 'Datatype' => $type, 'NameSpace' => 'static']);
+  }
+  @file_put_contents($file, date('c'));
+}
+
+/* Εγγραφή/ενημέρωση ενός υποστηρικτή στις λίστες. $contact: email, name, phone, amount, consent (bool), status. */
+function sa_mailjet_sync(array $contact): bool {
+  if (!sa_mailjet_enabled() || empty($contact['email'])) return false;
+  sa_mailjet_ensure_properties();
+  $lists = sa_mailjet_lists();
+  if ($lists['supporters'] <= 0) { sa_log('mailjet: no supporters list'); return false; }
+  $properties = array_filter([
+    'firstname' => trim((string) ($contact['name'] ?? '')) ?: null,
+    'phone' => trim((string) ($contact['phone'] ?? '')) ?: null,
+    'monthly_amount' => $contact['amount'] ?? null,
+    'supporter_since' => ($contact['status'] ?? 'active') === 'active' ? ($contact['since'] ?? gmdate('Y-m-d')) : null,
+    'consent_updates' => array_key_exists('consent', $contact) && $contact['consent'] === null ? null : (!empty($contact['consent']) ? 'yes' : 'no'),
+    'support_status' => $contact['status'] ?? 'active',
+  ], fn($v) => $v !== null && $v !== '');
+  $payload = ['Email' => $contact['email'], 'Action' => 'addnoforce', 'Properties' => $properties];
+  if (!empty($contact['name'])) $payload['Name'] = (string) $contact['name'];
+  $ok = sa_mailjet_request('POST', '/v3/REST/contactslist/' . $lists['supporters'] . '/managecontact', $payload) !== null;
+  if (!empty($contact['consent']) && $lists['updates'] > 0) {
+    $ok = sa_mailjet_request('POST', '/v3/REST/contactslist/' . $lists['updates'] . '/managecontact', $payload) !== null && $ok;
+  }
+  sa_log('mailjet sync ' . $contact['email'] . ' (' . ($contact['status'] ?? 'active') . '): ' . ($ok ? 'ok' : 'FAILED') . ' consent=' . (array_key_exists('consent', $contact) && $contact['consent'] === null ? 'unchanged' : (!empty($contact['consent']) ? 'yes' : 'no')));
+  return $ok;
+}
+
+/* Διαβάζει συναίνεση και κινητό από τα custom fields του Stripe Checkout.
+   Συναίνεση: το πρώτο dropdown (τιμή που ξεκινά με "yes"/"nai"/"ναι") ή το πεδίο consent_collection.
+   Κινητό: το πρώτο πεδίο κειμένου/αριθμού, αλλιώς customer_details.phone. */
+function sa_checkout_extras(array $session): array {
+  $consent = null; $phone = trim((string) ($session['customer_details']['phone'] ?? ''));
+  foreach ($session['custom_fields'] ?? [] as $field) {
+    $type = (string) ($field['type'] ?? '');
+    if ($type === 'dropdown' && $consent === null) {
+      $value = strtolower((string) ($field['dropdown']['value'] ?? ''));
+      $consent = $value !== '' && (str_starts_with($value, 'yes') || str_starts_with($value, 'nai') || str_starts_with($value, 'ναι') || str_starts_with($value, 'y'));
+    } elseif (in_array($type, ['text', 'numeric'], true) && $phone === '') {
+      $phone = trim((string) ($field[$type]['value'] ?? ''));
+    }
+  }
+  if ($consent === null && isset($session['consent']['promotions'])) $consent = $session['consent']['promotions'] === 'opt_in';
+  return ['consent' => (bool) $consent, 'phone' => $phone];
 }

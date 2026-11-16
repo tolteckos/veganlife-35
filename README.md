@@ -40,6 +40,16 @@ const peopleGridMode = "phase";     // "phase" ή "all"
 
 Το `config.php` γράφεται στον φάκελο **πάνω** από το `public_html` και δεν ανεβαίνει ποτέ στο GitHub.
 
+## Mailjet: αυτόματη εγγραφή κάθε υποστηρικτή σε λίστα
+
+Στο `setup.php` συμπληρώνονται το Mailjet API Key και Secret (Account settings → API Key Management). Σε κάθε `checkout.session.completed` ο υποστηρικτής μπαίνει:
+- στη λίστα **«Vegan Life 35 · Μηνιαίοι υποστηρικτές»** (όλοι), με ιδιότητες firstname, phone, monthly_amount, supporter_since, consent_updates, support_status·
+- στη λίστα **«Vegan Life 35 · Συναίνεση για ενημερώσεις»** μόνο αν απάντησε «Ναι» στο πεδίο συναίνεσης του checkout.
+
+Οι λίστες και οι ιδιότητες δημιουργούνται αυτόματα την πρώτη φορά. Σε ακύρωση συνδρομής η επαφή μένει στη λίστα με `support_status = cancelled` (χρειάζεται «Customers: Read» στο restricted key για να βρεθεί το email).
+
+Η συναίνεση και το κινητό έρχονται από **custom fields** των Stripe Payment Links (Dashboard → Payment links → κάθε link → Edit → Collect additional information): ένα dropdown με επιλογές που ξεκινούν από «Ναι»/«Yes» και «Όχι»/«No», και ένα προαιρετικό πεδίο κειμένου για κινητό. Ο κώδικας αναγνωρίζει το πρώτο dropdown ως συναίνεση και το πρώτο πεδίο κειμένου ως κινητό, ανεξάρτητα από τα ονόματά τους.
+
 ## Τοπική δοκιμή
 
 ```bash

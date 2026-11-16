@@ -38,6 +38,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user' => trim((string) ($_POST['smtp_user'] ?? '')) ?: ($existing['smtp']['user'] ?? ''),
         'pass' => (string) ($_POST['smtp_pass'] ?? '') !== '' ? (string) $_POST['smtp_pass'] : ($existing['smtp']['pass'] ?? ''),
       ],
+      'mailjet' => [
+        'api_key' => trim((string) ($_POST['mailjet_key'] ?? '')) ?: ($existing['mailjet']['api_key'] ?? ''),
+        'api_secret' => (string) ($_POST['mailjet_secret'] ?? '') !== '' ? trim((string) $_POST['mailjet_secret']) : ($existing['mailjet']['api_secret'] ?? ''),
+        'list_supporters' => (int) ($_POST['mailjet_list_supporters'] ?? ($existing['mailjet']['list_supporters'] ?? 0)),
+        'list_updates' => (int) ($_POST['mailjet_list_updates'] ?? ($existing['mailjet']['list_updates'] ?? 0)),
+        'api_base' => $existing['mailjet']['api_base'] ?? 'https://api.mailjet.com',
+      ],
     ];
     if ($config['stripe_restricted_key'] === '' || !str_starts_with($config['stripe_restricted_key'], 'rk_')) {
       $message = 'Το κλειδί Stripe πρέπει να είναι περιορισμένο κλειδί (ξεκινά με rk_).';
@@ -49,8 +56,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         @chmod($target, 0600);
         $ok = true;
         $message = 'Αποθηκεύτηκε στο ' . htmlspecialchars($target) . '. Δοκιμή: ανοίξτε το count.php.';
+        if (!empty($_POST['test_mailjet']) && $config['mailjet']['api_key'] !== '') {
+          require_once __DIR__ . '/_lib.php';
+          $lists = sa_mailjet_lists();
+          $message .= ($lists['supporters'] > 0) ? " Mailjet OK: λίστα υποστηρικτών #{$lists['supporters']}, λίστα ενημερώσεων #{$lists['updates']}." : ' Mailjet: ΑΠΟΤΥΧΙΑ σύνδεσης, ελέγξτε τα κλειδιά.';
+        }
         if (!empty($_POST['send_test']) && $config['notify_emails']) {
-          require __DIR__ . '/_lib.php';
+          require_once __DIR__ . '/_lib.php';
           sa_notify('Δοκιμή ειδοποιήσεων · Vegan Life 35', "Αυτό είναι δοκιμαστικό email από το supporters-api.\nΑν το βλέπετε, οι ειδοποιήσεις δουλεύουν.\n");
           $message .= ' Στάλθηκε δοκιμαστικό email.';
         }
@@ -79,7 +91,14 @@ $v = fn(string $k, $d = '') => htmlspecialchars((string) ($existing[$k] ?? $d));
     <label>SMTP χρήστης (η διεύθυνση email)</label><input type="text" name="smtp_user" value="<?= htmlspecialchars((string) ($existing['smtp']['user'] ?? 'ngo@veganlife.gr')) ?>">
     <label>SMTP κωδικός (του γραμματοκιβωτίου)</label><input type="password" name="smtp_pass" placeholder="<?= !empty($existing['smtp']['pass']) ? '•••••• (υπάρχει)' : '' ?>"><small>Αν μείνει κενό και δεν υπάρχει, τα email φεύγουν με το mail() του Hostinger.</small>
   </fieldset>
+  <fieldset><legend>Mailjet (προαιρετικό): κάθε νέος υποστηρικτής μπαίνει αυτόματα σε λίστα επαφών</legend>
+    <label>Mailjet API Key</label><input type="text" name="mailjet_key" value="<?= htmlspecialchars((string) ($existing['mailjet']['api_key'] ?? '')) ?>"><small>Mailjet → Account settings → API Key Management (Primary and Sub-account) → API Key.</small>
+    <label>Mailjet Secret Key</label><input type="password" name="mailjet_secret" placeholder="<?= !empty($existing['mailjet']['api_secret']) ? '•••••• (υπάρχει)' : '' ?>"><small>Από την ίδια σελίδα. Αν δεν φαίνεται, «Generate secret key».</small>
+    <label>ID λίστας υποστηρικτών (προαιρετικό)</label><input type="number" name="mailjet_list_supporters" min="0" value="<?= (int) ($existing['mailjet']['list_supporters'] ?? 0) ?: '' ?>"><small>Κενό = δημιουργείται αυτόματα η λίστα «Vegan Life 35 · Μηνιαίοι υποστηρικτές».</small>
+    <label>ID λίστας ενημερώσεων (προαιρετικό)</label><input type="number" name="mailjet_list_updates" min="0" value="<?= (int) ($existing['mailjet']['list_updates'] ?? 0) ?: '' ?>"><small>Κενό = δημιουργείται αυτόματα η λίστα «Vegan Life 35 · Συναίνεση για ενημερώσεις». Εδώ μπαίνουν μόνο όσοι απάντησαν «Ναι» στο checkout.</small>
+  </fieldset>
   <label><input type="checkbox" name="send_test" value="1" style="width:auto"> Στείλε δοκιμαστικό email μετά την αποθήκευση</label>
+  <label><input type="checkbox" name="test_mailjet" value="1" style="width:auto"> Δοκίμασε τη σύνδεση Mailjet (δημιουργεί τις λίστες αν λείπουν)</label>
   <button type="submit">Αποθήκευση</button>
 </form>
 </body></html>
