@@ -59,7 +59,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!empty($_POST['test_mailjet']) && $config['mailjet']['api_key'] !== '') {
           require_once __DIR__ . '/_lib.php';
           $lists = sa_mailjet_lists();
-          $message .= ($lists['supporters'] > 0) ? " Mailjet OK: λίστα υποστηρικτών #{$lists['supporters']}, λίστα ενημερώσεων #{$lists['updates']}." : ' Mailjet: ΑΠΟΤΥΧΙΑ σύνδεσης, ελέγξτε τα κλειδιά.';
+          $message .= ($lists['supporters'] > 0) ? " Mailjet OK: λίστα υποστηρικτών #{$lists['supporters']}, λίστα ενημερώσεων #{$lists['updates']}." : ' Mailjet: ΑΠΟΤΥΧΙΑ σύνδεσης. Απάντηση: ' . htmlspecialchars(sa_mailjet_last_error() ?: 'καμία') . ' · μήκος key ' . strlen($config['mailjet']['api_key']) . ', secret ' . strlen($config['mailjet']['api_secret']) . '.';
         }
         if (!empty($_POST['send_test']) && $config['notify_emails']) {
           require_once __DIR__ . '/_lib.php';

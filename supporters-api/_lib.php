@@ -185,6 +185,8 @@ function sa_smtp_send(array $smtp, string $from, string $fromHeader, string $to,
    - Λίστα «Ενημερώσεις»: μόνο όσοι απάντησαν «Ναι» στο checkout.
    Οι λίστες δημιουργούνται αυτόματα στην πρώτη εγγραφή αν δεν έχουν οριστεί IDs.
    ========================================================================== */
+function sa_mailjet_last_error(): string { return (string) ($GLOBALS['sa_mailjet_last_error'] ?? ''); }
+
 function sa_mailjet_enabled(): bool {
   $m = sa_config()['mailjet'] ?? [];
   return !empty($m['api_key']) && !empty($m['api_secret']);
@@ -199,8 +201,12 @@ function sa_mailjet_request(string $method, string $path, ?array $body = null): 
     CURLOPT_USERPWD => $m['api_key'] . ':' . $m['api_secret'], CURLOPT_HTTPHEADER => $headers,
   ]);
   if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
-  $raw = curl_exec($ch); $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
-  if ($raw === false || $status >= 400) { sa_log("mailjet $method $path failed: HTTP $status " . substr((string) $raw, 0, 200)); return null; }
+  $raw = curl_exec($ch); $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $curlError = curl_error($ch); curl_close($ch);
+  if ($raw === false || $status >= 400) {
+    $GLOBALS['sa_mailjet_last_error'] = "HTTP $status " . ($curlError !== '' ? "curl: $curlError " : '') . substr(strip_tags((string) $raw), 0, 300);
+    sa_log("mailjet $method $path failed: " . $GLOBALS['sa_mailjet_last_error']);
+    return null;
+  }
   $data = json_decode((string) $raw, true);
   return is_array($data) ? $data : [];
 }
