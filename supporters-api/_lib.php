@@ -195,15 +195,23 @@ function sa_mailjet_enabled(): bool {
 function sa_mailjet_request(string $method, string $path, ?array $body = null): ?array {
   $m = sa_config()['mailjet'];
   $ch = curl_init(rtrim($m['api_base'] ?? 'https://api.mailjet.com', '/') . $path);
-  $headers = ['Content-Type: application/json'];
+  $headers = [
+    'Content-Type: application/json',
+    'Accept: application/json',
+    'User-Agent: veganlife-35-supporters-api/1.0',
+    'Authorization: Basic ' . base64_encode(trim((string) $m['api_key']) . ':' . trim((string) $m['api_secret'])),
+  ];
+  $responseHeaders = '';
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_CUSTOMREQUEST => $method,
-    CURLOPT_USERPWD => $m['api_key'] . ':' . $m['api_secret'], CURLOPT_HTTPHEADER => $headers,
+    CURLOPT_HTTPHEADER => $headers, CURLOPT_FOLLOWLOCATION => false,
+    CURLOPT_HEADERFUNCTION => function ($ch, $line) use (&$responseHeaders) { $responseHeaders .= $line; return strlen($line); },
   ]);
   if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
   $raw = curl_exec($ch); $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $curlError = curl_error($ch); curl_close($ch);
   if ($raw === false || $status >= 400) {
-    $GLOBALS['sa_mailjet_last_error'] = "HTTP $status " . ($curlError !== '' ? "curl: $curlError " : '') . substr(strip_tags((string) $raw), 0, 300);
+    $server = preg_match('/^(server|www-authenticate|cf-ray|x-mj-request-guid):\s*(.+)$/mi', $responseHeaders, $mm) ? trim($mm[0]) : '';
+    $GLOBALS['sa_mailjet_last_error'] = "HTTP $status " . ($curlError !== '' ? "curl: $curlError " : '') . ($server !== '' ? "[$server] " : '') . 'body: ' . substr(strip_tags((string) $raw), 0, 300);
     sa_log("mailjet $method $path failed: " . $GLOBALS['sa_mailjet_last_error']);
     return null;
   }
