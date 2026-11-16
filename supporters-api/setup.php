@@ -59,6 +59,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!empty($_POST['test_mailjet']) && $config['mailjet']['api_key'] !== '') {
           require_once __DIR__ . '/_lib.php';
           $lists = sa_mailjet_lists();
+          if (hash_equals($tokenHash, hash('sha256', (string) $config['mailjet']['api_secret']))) $message .= ' ΠΡΟΣΟΧΗ: το Mailjet secret που αποθηκεύτηκε είναι ίδιο με τον κωδικό ρύθμισης, ο browser το συμπλήρωσε αυτόματα. Ξαναγράψτε το secret.';
+          if (hash_equals($tokenHash, hash('sha256', (string) $config['mailjet']['api_key']))) $message .= ' ΠΡΟΣΟΧΗ: το Mailjet API key είναι ίδιο με τον κωδικό ρύθμισης.';
           $message .= ($lists['supporters'] > 0) ? " Mailjet OK: λίστα υποστηρικτών #{$lists['supporters']}, λίστα ενημερώσεων #{$lists['updates']}." : ' Mailjet: ΑΠΟΤΥΧΙΑ σύνδεσης. Απάντηση: ' . htmlspecialchars(sa_mailjet_last_error() ?: 'καμία') . ' · μήκος key ' . strlen($config['mailjet']['api_key']) . ', secret ' . strlen($config['mailjet']['api_secret']) . '.';
         }
         if (!empty($_POST['send_test']) && $config['notify_emails']) {
@@ -79,9 +81,9 @@ $v = fn(string $k, $d = '') => htmlspecialchars((string) ($existing[$k] ?? $d));
 <p>Τα στοιχεία αποθηκεύονται στον server, εκτός του δημόσιου φακέλου. <?= $existing ? '<strong>Υπάρχει ήδη ρύθμιση·</strong> τα κενά πεδία κρατούν την τρέχουσα τιμή.' : 'Πρώτη ρύθμιση.' ?></p>
 <?php if ($message): ?><p class="msg<?= $ok ? '' : ' err' ?>"><?= $message ?></p><?php endif; ?>
 <form method="post" autocomplete="off">
-  <label>Κωδικός ρύθμισης (setup token)</label><input type="password" name="token" required>
-  <label>Stripe restricted key (rk_live_…)</label><input type="password" name="stripe_restricted_key" placeholder="<?= $existing ? '•••••• (υπάρχει)' : 'rk_live_...' ?>"><small>Developers → API keys → Create restricted key → μόνο Subscriptions: Read.</small>
-  <label>Stripe webhook signing secret (whsec_…)</label><input type="password" name="stripe_webhook_secret" placeholder="<?= $existing ? '•••••• (υπάρχει)' : 'whsec_...' ?>"><small>Developers → Webhooks → endpoint <code><?= htmlspecialchars('https://' . ($_SERVER['HTTP_HOST'] ?? '') . '/supporters-api/stripe-webhook.php') ?></code> → Signing secret.</small>
+  <label>Κωδικός ρύθμισης (setup token)</label><input type="password" autocomplete="off" name="token" required>
+  <label>Stripe restricted key (rk_live_…)</label><input type="text" autocomplete="off" spellcheck="false" name="stripe_restricted_key" placeholder="<?= $existing ? '•••••• (υπάρχει)' : 'rk_live_...' ?>"><small>Developers → API keys → Create restricted key → μόνο Subscriptions: Read.</small>
+  <label>Stripe webhook signing secret (whsec_…)</label><input type="text" autocomplete="off" spellcheck="false" name="stripe_webhook_secret" placeholder="<?= $existing ? '•••••• (υπάρχει)' : 'whsec_...' ?>"><small>Developers → Webhooks → endpoint <code><?= htmlspecialchars('https://' . ($_SERVER['HTTP_HOST'] ?? '') . '/supporters-api/stripe-webhook.php') ?></code> → Signing secret.</small>
   <label>Έναρξη καμπάνιας (μετράμε συνδρομές από τότε)</label><input type="text" name="campaign_start" value="<?= $v('campaign_start', date('Y-m-d') . ' 00:00:00') ?>">
   <label>Email ειδοποίησης (χωρισμένα με κόμμα)</label><input type="text" name="notify_emails" value="<?= htmlspecialchars(implode(', ', $existing['notify_emails'] ?? ['ngo@veganlife.gr'])) ?>">
   <label>Υποστηρικτές εκτός Stripe (π.χ. κατάθεση)</label><input type="number" name="manual_extra" min="0" value="<?= $v('manual_extra', '0') ?>">
@@ -89,11 +91,11 @@ $v = fn(string $k, $d = '') => htmlspecialchars((string) ($existing[$k] ?? $d));
     <label>Αποστολέας</label><input type="text" name="from_email" value="<?= $v('from_email', 'ngo@veganlife.gr') ?>">
     <label>SMTP host (Titan: smtp.titan.email)</label><input type="text" name="smtp_host" value="<?= htmlspecialchars((string) ($existing['smtp']['host'] ?? 'smtp.titan.email')) ?>">
     <label>SMTP χρήστης (η διεύθυνση email)</label><input type="text" name="smtp_user" value="<?= htmlspecialchars((string) ($existing['smtp']['user'] ?? 'ngo@veganlife.gr')) ?>">
-    <label>SMTP κωδικός (του γραμματοκιβωτίου)</label><input type="password" name="smtp_pass" placeholder="<?= !empty($existing['smtp']['pass']) ? '•••••• (υπάρχει)' : '' ?>"><small>Αν μείνει κενό και δεν υπάρχει, τα email φεύγουν με το mail() του Hostinger.</small>
+    <label>SMTP κωδικός (του γραμματοκιβωτίου)</label><input type="password" autocomplete="new-password" name="smtp_pass" placeholder="<?= !empty($existing['smtp']['pass']) ? '•••••• (υπάρχει)' : '' ?>"><small>Αν μείνει κενό και δεν υπάρχει, τα email φεύγουν με το mail() του Hostinger.</small>
   </fieldset>
   <fieldset><legend>Mailjet (προαιρετικό): κάθε νέος υποστηρικτής μπαίνει αυτόματα σε λίστα επαφών</legend>
-    <label>Mailjet API Key</label><input type="text" name="mailjet_key" value="<?= htmlspecialchars((string) ($existing['mailjet']['api_key'] ?? '')) ?>"><small>Mailjet → Account settings → API Key Management (Primary and Sub-account) → API Key.</small>
-    <label>Mailjet Secret Key</label><input type="password" name="mailjet_secret" placeholder="<?= !empty($existing['mailjet']['api_secret']) ? '•••••• (υπάρχει)' : '' ?>"><small>Από την ίδια σελίδα. Αν δεν φαίνεται, «Generate secret key».</small>
+    <label>Mailjet API Key</label><input type="text" autocomplete="off" spellcheck="false" name="mailjet_key" value="<?= htmlspecialchars((string) ($existing['mailjet']['api_key'] ?? '')) ?>"><small>Mailjet → Account settings → API Key Management (Primary and Sub-account) → API Key.</small>
+    <label>Mailjet Secret Key</label><input type="text" autocomplete="off" spellcheck="false" name="mailjet_secret" placeholder="<?= !empty($existing['mailjet']['api_secret']) ? '•••••• (υπάρχει)' : '' ?>"><small>Από την ίδια σελίδα. Αν δεν φαίνεται, «Generate secret key».</small>
     <label>ID λίστας υποστηρικτών (προαιρετικό)</label><input type="number" name="mailjet_list_supporters" min="0" value="<?= (int) ($existing['mailjet']['list_supporters'] ?? 0) ?: '' ?>"><small>Κενό = δημιουργείται αυτόματα η λίστα «Vegan Life 35 · Μηνιαίοι υποστηρικτές».</small>
     <label>ID λίστας ενημερώσεων (προαιρετικό)</label><input type="number" name="mailjet_list_updates" min="0" value="<?= (int) ($existing['mailjet']['list_updates'] ?? 0) ?: '' ?>"><small>Κενό = δημιουργείται αυτόματα η λίστα «Vegan Life 35 · Συναίνεση για ενημερώσεις». Εδώ μπαίνουν μόνο όσοι απάντησαν «Ναι» στο checkout.</small>
   </fieldset>
