@@ -269,8 +269,11 @@ function sa_mailjet_sync(array $contact): bool {
   $payload = ['Email' => $contact['email'], 'Action' => 'addnoforce', 'Properties' => $properties];
   if (!empty($contact['name'])) $payload['Name'] = (string) $contact['name'];
   $ok = sa_mailjet_request('POST', '/v3/REST/contactslist/' . $lists['supporters'] . '/managecontact', $payload) !== null;
-  if (!empty($contact['consent']) && $lists['updates'] > 0) {
-    $ok = sa_mailjet_request('POST', '/v3/REST/contactslist/' . $lists['updates'] . '/managecontact', $payload) !== null && $ok;
+  if (!empty($contact['consent'])) {
+    if ($lists['updates'] > 0) $ok = sa_mailjet_request('POST', '/v3/REST/contactslist/' . $lists['updates'] . '/managecontact', $payload) !== null && $ok;
+    // Και στην κανονική λίστα Newsletter της Vegan Life (0 = απενεργοποίηση).
+    $newsletter = (int) (sa_config()['mailjet']['list_newsletter'] ?? 10427006);
+    if ($newsletter > 0) $ok = sa_mailjet_request('POST', "/v3/REST/contactslist/$newsletter/managecontact", $payload) !== null && $ok;
   }
   sa_log('mailjet sync ' . $contact['email'] . ' (' . ($contact['status'] ?? 'active') . '): ' . ($ok ? 'ok' : 'FAILED') . ' consent=' . (array_key_exists('consent', $contact) && $contact['consent'] === null ? 'unchanged' : (!empty($contact['consent']) ? 'yes' : 'no')));
   return $ok;

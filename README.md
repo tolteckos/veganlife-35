@@ -44,7 +44,7 @@ const peopleGridMode = "phase";     // "phase" ή "all"
 
 Στο `setup.php` συμπληρώνονται το Mailjet API Key και Secret (Account settings → API Key Management). Σε κάθε `checkout.session.completed` ο υποστηρικτής μπαίνει:
 - στη λίστα **«Vegan Life 35 · Μηνιαίοι υποστηρικτές»** (όλοι), με ιδιότητες firstname, phone, monthly_amount, supporter_since, consent_updates, support_status·
-- στη λίστα **«Vegan Life 35 · Συναίνεση για ενημερώσεις»** μόνο αν απάντησε «Ναι» στο πεδίο συναίνεσης του checkout.
+- στη λίστα **«Vegan Life 35 · Συναίνεση για ενημερώσεις»** και στην κανονική λίστα **«Newsletter»** (#10427006, ρυθμίζεται στο setup.php) μόνο αν απάντησε «Ναι» στο πεδίο συναίνεσης του checkout.
 
 Οι λίστες και οι ιδιότητες δημιουργούνται αυτόματα την πρώτη φορά. Σε ακύρωση συνδρομής η επαφή μένει στη λίστα με `support_status = cancelled` (χρειάζεται «Customers: Read» στο restricted key για να βρεθεί το email).
 

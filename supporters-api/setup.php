@@ -43,6 +43,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'api_secret' => (string) ($_POST['mailjet_secret'] ?? '') !== '' ? trim((string) $_POST['mailjet_secret']) : ($existing['mailjet']['api_secret'] ?? ''),
         'list_supporters' => (int) ($_POST['mailjet_list_supporters'] ?? ($existing['mailjet']['list_supporters'] ?? 0)),
         'list_updates' => (int) ($_POST['mailjet_list_updates'] ?? ($existing['mailjet']['list_updates'] ?? 0)),
+        'list_newsletter' => isset($_POST['mailjet_list_newsletter']) && $_POST['mailjet_list_newsletter'] !== '' ? (int) $_POST['mailjet_list_newsletter'] : (int) ($existing['mailjet']['list_newsletter'] ?? 10427006),
         'api_base' => $existing['mailjet']['api_base'] ?? 'https://api.mailjet.com',
       ],
     ];
@@ -98,6 +99,7 @@ $v = fn(string $k, $d = '') => htmlspecialchars((string) ($existing[$k] ?? $d));
     <label>Mailjet API Key</label><input type="text" autocomplete="off" spellcheck="false" name="mailjet_key" value="<?= htmlspecialchars((string) ($existing['mailjet']['api_key'] ?? '')) ?>"><small>Mailjet → Account settings → API Key Management (Primary and Sub-account) → API Key.</small>
     <label>Mailjet Secret Key</label><input type="text" autocomplete="off" spellcheck="false" name="mailjet_secret" placeholder="<?= !empty($existing['mailjet']['api_secret']) ? '•••••• (υπάρχει)' : '' ?>"><small>Από την ίδια σελίδα. Αν δεν φαίνεται, «Generate secret key».</small>
     <label>ID λίστας υποστηρικτών (προαιρετικό)</label><input type="number" name="mailjet_list_supporters" min="0" value="<?= (int) ($existing['mailjet']['list_supporters'] ?? 0) ?: '' ?>"><small>Κενό = δημιουργείται αυτόματα η λίστα «Vegan Life 35 · Μηνιαίοι υποστηρικτές».</small>
+    <label>ID λίστας Newsletter όπου μπαίνουν επίσης όσοι συναινούν</label><input type="number" name="mailjet_list_newsletter" min="0" value="<?= (int) ($existing['mailjet']['list_newsletter'] ?? 10427006) ?>"><small>Προεπιλογή: η λίστα «Newsletter» (#10427006). Βάλτε 0 για να απενεργοποιηθεί.</small>
     <label>ID λίστας ενημερώσεων (προαιρετικό)</label><input type="number" name="mailjet_list_updates" min="0" value="<?= (int) ($existing['mailjet']['list_updates'] ?? 0) ?: '' ?>"><small>Κενό = δημιουργείται αυτόματα η λίστα «Vegan Life 35 · Συναίνεση για ενημερώσεις». Εδώ μπαίνουν μόνο όσοι απάντησαν «Ναι» στο checkout.</small>
   </fieldset>
   <label><input type="checkbox" name="send_test" value="1" style="width:auto"> Στείλε δοκιμαστικό email μετά την αποθήκευση</label>
